@@ -1,109 +1,81 @@
 # 🛡️ FinOps Guard: Enterprise Infrastructure
 
 [![Platform: Azure](https://img.shields.io/badge/Platform-Azure-0089D6?style=flat-square&logo=microsoft-azure)](https://azure.microsoft.com/)
-[![Infrastructure: Terraform](https://img.shields.io/badge/IaC-Terraform-623CE4?style=flat-square&logo=terraform)](https://www.terraform.io/)
-[![Orchestration: Kubernetes](https://img.shields.io/badge/Orchestration-Kubernetes-326CE5?style=flat-square&logo=kubernetes)](https://kubernetes.io/)
+[![IaC: Terraform](https://img.shields.io/badge/IaC-Terraform-623CE4?style=flat-square&logo=terraform)](https://www.terraform.io/)
+[![Orchestration: AKS](https://img.shields.io/badge/Orchestration-Kubernetes-326CE5?style=flat-square&logo=kubernetes)](https://kubernetes.io/)
+[![Messaging: Kafka](https://img.shields.io/badge/Messaging-Apache_Kafka-231F20?style=flat-square&logo=apache-kafka)](https://kafka.apache.org/)
 
 ## 📖 Overview
-**FinOps Guard** is an automated, AI-powered cloud governance platform designed to solve the problem of "Cloud Sprawl" in enterprise environments. This repository contains the **Infrastructure-as-Code (IaC)** required to deploy a secure, scalable, and observable environment on Microsoft Azure.
+**FinOps Guard** is an autonomous, enterprise-grade cloud governance platform. This repository manages the **Infrastructure-as-Code (IaC)**, providing a highly secure, Zero-Trust environment. It is designed to host an event-driven microservices architecture that identifies, analyzes, and remediates cloud waste across multiple Azure subscriptions.
 
-### 💼 Business Problem
-Large organizations often waste 20-30% of their cloud budget on:
-- **Zombie Resources:** Unattached disks and idle public IPs.
-- **Over-provisioning:** Large VMs running minimal workloads.
-- **Lack of Governance:** Resources without cost-center tagging.
+---
 
-### 🚀 Solution
-This infrastructure provisions a **Zero Trust** network environment that hosts a Go-based collector and a Python-based AI analyzer (Gemini Pro) to identify and remediate cloud waste automatically.
+## 💼 Business Problem & Solution
+### The Problem
+In large-scale enterprise environments (e.g., Automotive, Finance), high-velocity development often leads to **"Cloud Sprawl."** 
+- **Zombie Resources:** Orphaned disks, idle public IPs, and abandoned snapshots.
+- **Over-provisioning:** Workloads running on oversized VM instances.
+- **Hidden Costs:** These factors typically account for **20-30% of wasted cloud spend.**
+
+### The Solution
+FinOps Guard provides an automated **"Financial Security Layer"** by:
+1. **Discovering:** Real-time scanning of infrastructure via Go-based collectors.
+2. **Analyzing:** Utilizing **LLMs (Gemini Pro)** to interpret usage metrics into human-readable cost-saving advice.
+3. **Remediating:** Implementing "One-click" or automated deletion of wasteful resources within a secure network boundary.
 
 ---
 
 ## 🏗️ System Architecture
 
 ```mermaid
-graph TB
-    subgraph Internet ["🌐 Public Internet"]
+graph TD
+    subgraph Public_Internet [🌐 Internet]
         User((Admin User))
-        VPN_Client[[VPN Client]]
+        VPN[[P2S VPN Client]]
     end
 
-    subgraph Azure_Cloud ["☁️ Azure Cloud (Germany West Central)"]
+    subgraph Azure_VNet [VNet: 10.0.0.0/16]
+        direction TB
         
-        subgraph VNet ["VNet: 10.0.0.0/16"]
-            
-            subgraph Snet_Frontend ["Subnet: Frontend (10.0.1.0/24)"]
-                AGW[Azure App Gateway + WAF]
-            end
-
-            subgraph Snet_AKS ["Subnet: AKS Cluster (10.0.2.0/24)"]
-                direction TB
-                subgraph K8s_Pods ["Kubernetes Pods"]
-                    UI[Web UI - React/Angular]
-                    Collector[Go Collector Service]
-                    Analyzer[Python AI Analyzer]
-                end
-                
-                subgraph K8s_Infra ["K8s Platform Services"]
-                    Kafka[(Apache Kafka Cluster - Strimzi)]
-                    Prometheus[Prometheus / Grafana]
-                    CertManager[Cert-Manager / SSL]
-                end
-            end
-
-            subgraph Snet_Data ["Subnet: Private Data (10.0.3.0/24)"]
-                DB[(PostgreSQL Flexible Server)]
-                PE_DB[Private Endpoint]
-                Redis[(Redis Cache)]
-            end
-
-            subgraph Snet_Mgmt ["Subnet: Management (10.0.4.0/24)"]
-                Bastion[Azure Bastion]
-                VPNGW[Azure VPN Gateway]
-            end
+        subgraph Snet_Front [Subnet: Frontend - 10.0.1.0/24]
+            AGW[App Gateway + WAF]
         end
 
-        %% Global Services
-        Entra[Azure Entra ID / Managed Identity]
-        KV[Azure Key Vault]
-        ACR[Azure Container Registry]
-        Storage[Azure Storage Account]
-        AI[Gemini Pro API]
+        subgraph Snet_AKS [Subnet: AKS Cluster - 10.0.2.0/24]
+            direction LR
+            Collector[Go Collector] -->|Produce Events| Kafka[(Kafka)]
+            Kafka -->|Consume Events| Analyzer[Python AI]
+            Monitoring[Prometheus/Grafana]
+        end
+
+        subgraph Snet_Data [Subnet: Data - 10.0.3.0/24]
+            DB[(Postgres Flexible)]
+            PE[Private Endpoint]
+            Redis[(Redis Cache)]
+        end
+
+        subgraph Snet_Mgmt [Subnet: Management - 10.0.4.0/24]
+            Bastion[Azure Bastion]
+            VPNGW[VPN Gateway]
+        end
     end
 
-    %% Traffic Flows
-    User -->|HTTPS/SSL - Port 443| AGW
-    VPN_Client -->|P2S VPN| VPNGW
-    VPNGW -->|Secure Tunnel| Snet_AKS
-    
-    AGW -->|Internal LB| UI
-    UI -->|API Requests| Collector
-    
-    Collector -->|Produce Cost Events| Kafka
-    Kafka -->|Consume Events| Analyzer
-    Analyzer -->|LLM Prompt| AI
-    
-    %% Backend Flows
-    K8s_Pods -->|Private Link| PE_DB
-    PE_DB --> DB
-    K8s_Pods -->|Managed Identity| Entra
-    K8s_Pods -->|Fetch Secrets| KV
-    
-    %% Observability
-    K8s_Pods -.->|Metrics Scrape| Prometheus
-    Bastion -.->|SSH/RDP| Snet_AKS
+    User -->|Port 443| AGW
+    VPN -->|Secure Tunnel| VPNGW
+    AGW --> UI[Web Dashboard]
+    Analyzer -->|API| Gemini[Gemini Pro AI]
+    PE --> DB
+    Collector -.->|Managed Identity| Entra[Azure Entra ID]
 ```
 ---
-## 🛠️ Tech Stack
-*   **Infrastructure:** Terraform, Azure CLI
-*   **Cloud Platform:** Microsoft Azure (AKS, VNet, PostgreSQL)
-*   **Backend:** Go (Collector), Python (Analyzer + Gemini AI)
-*   **Frontend:** React / Angular
-*   **CI/CD:** GitHub Actions
----
-## 📂 Project Structure
-```text
-infra-repo/
-├── terraform/          # Infrastructure-as-Code
-│   ├── modules/        # Reusable networking & AKS modules
-│   └── environments/   # Dev/Prod configurations
-└── docs/               # Architecture diagrams & specs
+### 🛠️ Tech Stack & Responsibility Matrix
+Technology	Role & Responsibility:
+- **Terraform	IaC**: Automates the provisioning of the entire Azure environment using a modular, reusable design.
+- **Azure VNet	Network Isolation**: Segregates the environment into four distinct subnets to enforce "Least Privilege" traffic flow.
+- **AKS (Kubernetes) Compute Platform**: Orchestrates microservices and platform tools (Kafka, Prometheus) with high availability.
+- **Apache Kafka Event Streaming**: Decouples the Collector from the Analyzer, ensuring data durability and system resilience.
+- **App Gateway + WAF L7 Security**: Manages SSL/TLS termination and protects the frontend from SQLi and XSS attacks.
+- **VPN Gateway	Secure Access**: Provides a Point-to-Site (P2S) encrypted tunnel for administrative access to the private network.
+- **PostgreSQL	Persistence**: Acts as the "Source of Truth" for cost history, waste reports, and audit logs.
+- **Private Link	Data Security**: Ensures that traffic between AKS and PostgreSQL never traverses the public internet.
+- **Managed	Identity**: Implements passwordless authentication between Azure services using OIDC.
