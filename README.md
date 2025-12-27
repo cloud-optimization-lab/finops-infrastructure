@@ -79,3 +79,71 @@ Technology	Role & Responsibility:
 - **PostgreSQL	Persistence**: Acts as the "Source of Truth" for cost history, waste reports, and audit logs.
 - **Private Link	Data Security**: Ensures that traffic between AKS and PostgreSQL never traverses the public internet.
 - **Managed	Identity**: Implements passwordless authentication between Azure services using OIDC.
+# 🗺️ FinOps Guard: Implementation Roadmap & Checklist
+
+This checklist tracks the progress of the FinOps Guard platform from initial networking to AI-driven automation.
+
+---
+
+## 🏗️ Phase 1: Networking & Zero-Trust Foundation
+*Goal: Establish the secure "pipes" and private connectivity.*
+- [ ] **Environment Setup:** Configure Azure CLI, Terraform, and `kubectl` locally.
+- [ ] **Resource Group:** Provision `rg-finops-dev-ge-001` in Germany West Central.
+- [ ] **Virtual Network (VNet):** Define `10.0.0.0/16` address space.
+- [ ] **Subnet Segmentation:** 
+    - [ ] `snet-frontend` (10.0.1.0/24) - For App Gateway.
+    - [ ] `snet-aks` (10.0.2.0/24) - For Compute.
+    - [ ] `snet-data` (10.0.3.0/24) - For Persistence.
+    - [ ] `snet-mgmt` (10.0.4.0/24) - For VPN/Bastion.
+- [ ] **Network Security Groups (NSG):** Implement "Deny All" ingress/egress by default.
+- [ ] **Private DNS Zones:** Setup `privatelink.postgres.database.azure.com`.
+- [ ] **Connectivity:** Provision **Azure VPN Gateway** (Point-to-Site) for secure remote access.
+
+## 🔐 Phase 2: Identity & Security Layer
+*Goal: Implement passwordless authentication and secret management.*
+- [ ] **Azure Key Vault:** Provision with RBAC-based access control.
+- [ ] **Managed Identities:** 
+    - [ ] Create User-Assigned Identity for the Collector (Go).
+    - [ ] Create User-Assigned Identity for the Analyzer (Python).
+- [ ] **RBAC Assignments:** Grant "Reader" access to the Subscription for cost-discovery.
+- [ ] **Workload Identity:** Configure OIDC issuer and Federated Credentials for AKS.
+
+## 🗄️ Phase 3: Persistent Data Tier
+*Goal: Provision private database and caching services.*
+- [ ] **PostgreSQL Flexible Server:** Deploy into the `snet-data` with VNet Integration.
+- [ ] **Private Endpoint:** Ensure the DB is only reachable via internal IP.
+- [ ] **Redis Cache:** Setup for high-speed session and API token caching.
+
+## ☸️ Phase 4: The Platform (AKS & ACR)
+*Goal: Build the Kubernetes factory.*
+- [ ] **Azure Container Registry (ACR):** Provision and enable "AcrPull" for AKS.
+- [ ] **AKS Private Cluster:** 
+    - [ ] Provision nodes in `snet-aks`.
+    - [ ] Disable Public FQDN (API Server access via VPN/Bastion only).
+- [ ] **Add-ons:** Install **Cert-Manager** and **External-DNS** via Helm.
+
+## 📩 Phase 5: Event Streaming (Kafka)
+*Goal: Implement the asynchronous messaging backbone.*
+- [ ] **Strimzi Operator:** Deploy the Kafka Operator to AKS.
+- [ ] **Kafka Cluster:** Provision a 3-node cluster for high availability.
+- [ ] **Kafka Topics:** Initialize `cost-discovery-events` and `remediation-logs`.
+
+## 🧠 Phase 6: Microservices Development
+*Goal: Build and containerize the "Brains" of the system.*
+- [ ] **Go Collector:**
+    - [ ] Integrate Azure SDK for Cost Management.
+    - [ ] Implement Kafka Producer logic.
+    - [ ] Containerize with Multi-stage Docker build.
+- [ ] **Python Analyzer:**
+    - [ ] Implement Kafka Consumer logic.
+    - [ ] Integrate **Gemini Pro API** for cost-analysis logic.
+    - [ ] Containerize and push to ACR.
+
+## 🖥️ Phase 7: Frontend & Edge Security
+*Goal: Expose the system securely to the user.*
+- [ ] **Application Gateway:** Configure with **Web Application Firewall (WAF)**.
+- [ ] **SSL/TLS:** Bind certificates from Key Vault to the App Gateway.
+- [ ] **Dashboard:** Deploy the React/Angular UI to AKS or Azure Static Web Apps.
+
+## 📊 Phase 8: Observability & SRE
+*Goal: Monitor system health and fina
